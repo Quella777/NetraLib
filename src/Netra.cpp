@@ -182,4 +182,12 @@ namespace QCL
         std::lock_guard<std::mutex> lock(clientsMutex_);
         return clientSockets_;
     }
+
+    // 屏蔽所有信号
+    void blockAllSignals()
+    {
+        // 忽略全部的信号
+        for (int ii = 1; ii <= 64; ii++)
+            signal(ii, SIG_IGN);
+    }
 }

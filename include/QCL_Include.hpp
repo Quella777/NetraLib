@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cmath>
 #include <ctime>
+#include <csignal>
 
 //  容器与算法
 #include <vector>
