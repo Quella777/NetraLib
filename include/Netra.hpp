@@ -82,5 +82,4 @@ namespace QCL
 
     // 屏蔽所有信号
     void blockAllSignals();
-
 }
