@@ -158,18 +158,22 @@ namespace QCL
      *
      * 注意：此函数在当前设计中未在线程中使用，仅演示用。
      */
-    char *TcpServer::receiveFromClient(int clientSock)
+    char *TcpServer::receiveFromClient(int clientSock, bool flag)
     {
         char buffer[1024];
         std::memset(buffer, 0, sizeof(buffer));
 
-        ssize_t bytesReceived = recv(clientSock, buffer, sizeof(buffer) - 1, 0);
+        ssize_t bytesReceived = 0;
+
+        if (flag)
+            bytesReceived = recv(clientSock, buffer, sizeof(buffer) - 1, 0);
+        else
+            bytesReceived = recv(clientSock, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
+
         if (bytesReceived <= 0)
         {
-            std::cerr << "接收数据失败或客户端断开连接\n";
             return nullptr;
         }
-
         return strdup(buffer); // 返回动态分配的字符串副本
     }
 
@@ -181,6 +185,35 @@ namespace QCL
     {
         std::lock_guard<std::mutex> lock(clientsMutex_);
         return clientSockets_;
+    }
+
+    /**
+     * @brief 获取连接客户端的IP和端口
+     * @param clientSock 客户端Socket描述符
+     */
+    char *TcpServer::getClientIPAndPort(int clientSock)
+    {
+        struct sockaddr_in addr;
+        socklen_t addr_size = sizeof(addr);
+
+        // 获取客户端地址信息
+        if (getpeername(clientSock, (struct sockaddr *)&addr, &addr_size) == -1)
+        {
+            perror("getpeername failed");
+            return NULL;
+        }
+
+        // 分配内存存储结果(格式: "IP:PORT")
+        char *result = (char *)malloc(INET_ADDRSTRLEN + 10);
+        if (!result)
+            return NULL;
+
+        // 转换IP和端口
+        char *ip = inet_ntoa(addr.sin_addr);
+        unsigned short port = ntohs(addr.sin_port);
+
+        snprintf(result, INET_ADDRSTRLEN + 10, "%s:%d", ip, port);
+        return result;
     }
 
     // 屏蔽所有信号
