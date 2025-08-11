@@ -2,6 +2,7 @@
 
 namespace QCL
 {
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     TcpServer::TcpServer(int port)
         : port_(port), running_(false), serverSock_(-1) {}
 
@@ -215,7 +216,130 @@ namespace QCL
         snprintf(result, INET_ADDRSTRLEN + 10, "%s:%d", ip, port);
         return result;
     }
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    WriteFile::WriteFile(const std::string &filePath)
+        : filePath_(filePath) {}
 
+    /**
+     * @brief 覆盖写文本（线程安全）
+     */
+    bool WriteFile::overwriteText(const std::string &content)
+    {
+        std::lock_guard<std::mutex> lock(writeMutex_); // 加锁
+        return writeToFile(content, std::ios::out | std::ios::trunc);
+    }
+
+    /**
+     * @brief 追加写文本（线程安全）
+     */
+    bool WriteFile::appendText(const std::string &content)
+    {
+        std::lock_guard<std::mutex> lock(writeMutex_);
+        return writeToFile(content, std::ios::out | std::ios::app);
+    }
+
+    /**
+     * @brief 按位置写入（线程安全）
+     */
+    bool WriteFile::writeOriginal(const std::string &content, std::streampos position)
+    {
+        std::lock_guard<std::mutex> lock(writeMutex_);
+
+        std::ofstream file(filePath_, std::ios::in | std::ios::out);
+        if (!file.is_open())
+        {
+            // 文件不存在则创建
+            file.open(filePath_, std::ios::out);
+            file.close();
+            file.open(filePath_, std::ios::in | std::ios::out);
+        }
+        if (!file.is_open())
+            return false;
+
+        file.seekp(position);
+        file << content;
+        file.close();
+        return true;
+    }
+
+    /**
+     * @brief 覆盖写二进制（线程安全）
+     */
+    bool WriteFile::overwriteBinary(const std::vector<char> &data)
+    {
+        std::lock_guard<std::mutex> lock(writeMutex_);
+        return writeBinary(data, std::ios::out | std::ios::trunc | std::ios::binary);
+    }
+
+    /**
+     * @brief 追加写二进制（线程安全）
+     */
+    bool WriteFile::appendBinary(const std::vector<char> &data)
+    {
+        std::lock_guard<std::mutex> lock(writeMutex_);
+        return writeBinary(data, std::ios::out | std::ios::app | std::ios::binary);
+    }
+
+    /**
+     * @brief 通用文本写入（私有）
+     */
+    bool WriteFile::writeToFile(const std::string &content, std::ios::openmode mode)
+    {
+        std::ofstream file(filePath_, mode);
+        if (!file.is_open())
+            return false;
+        file << content;
+        file.close();
+        return true;
+    }
+
+    /**
+     * @brief 通用二进制写入（私有）
+     */
+    bool WriteFile::writeBinary(const std::vector<char> &data, std::ios::openmode mode)
+    {
+        std::ofstream file(filePath_, mode);
+        if (!file.is_open())
+            return false;
+        file.write(data.data(), data.size());
+        file.close();
+        return true;
+    }
+
+    /**
+     * @brief 计算第一个指定字节序列前的字节数（包含该字节序列本身）
+     */
+    long WriteFile::countBytesBeforePattern(const std::string &pattern)
+    {
+        std::lock_guard<std::mutex> lock(writeMutex_);
+
+        if (pattern.empty())
+            return -1;
+
+        std::ifstream file(filePath_, std::ios::binary); // 二进制模式防止编码干扰
+        if (!file.is_open())
+            return -1;
+
+        // 将整个文件读入内存
+        std::vector<char> buffer((std::istreambuf_iterator<char>(file)),
+                                 std::istreambuf_iterator<char>());
+        file.close();
+
+        // 在 buffer 中查找 pattern
+        auto it = std::search(buffer.begin(), buffer.end(),
+                              pattern.begin(), pattern.end());
+
+        if (it == buffer.end())
+        {
+            return -1; // 没找到
+        }
+
+        // 计算从开头到 pattern 结束的字节数
+        size_t pos = std::distance(buffer.begin(), it);
+        return static_cast<long>(pos + pattern.size());
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // 屏蔽所有信号
     void blockAllSignals()
     {
@@ -223,4 +347,5 @@ namespace QCL
         for (int ii = 1; ii <= 64; ii++)
             signal(ii, SIG_IGN);
     }
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 }
