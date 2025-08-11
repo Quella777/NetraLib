@@ -344,11 +344,15 @@ namespace QCL
 
     ReadFile::~ReadFile()
     {
+        std::lock_guard<std::mutex> lock(mtx_);
         Close();
     }
 
     bool ReadFile::Open()
     {
+        std::lock_guard<std::mutex> lock(mtx_);
+        if (file_.is_open())
+            file_.close();
         file_.open(filename_, std::ios::in | std::ios::binary);
         return file_.is_open();
     }
@@ -356,16 +360,21 @@ namespace QCL
     void ReadFile::Close()
     {
         if (file_.is_open())
+        {
+            std::lock_guard<std::mutex> lock(mtx_);
             file_.close();
+        }
     }
 
     bool ReadFile::IsOpen() const
     {
+        std::lock_guard<std::mutex> lock(mtx_);
         return file_.is_open();
     }
 
     std::string ReadFile::ReadAllText()
     {
+        std::lock_guard<std::mutex> lock(mtx_);
         if (!file_.is_open() && !Open())
             return "";
 
@@ -376,6 +385,7 @@ namespace QCL
 
     std::vector<char> ReadFile::ReadAllBinary()
     {
+        std::lock_guard<std::mutex> lock(mtx_);
         if (!file_.is_open() && !Open())
             return {};
 
@@ -384,6 +394,7 @@ namespace QCL
 
     std::vector<std::string> ReadFile::ReadLines()
     {
+        std::lock_guard<std::mutex> lock(mtx_);
         if (!file_.is_open() && !Open())
             return {};
 
@@ -398,17 +409,19 @@ namespace QCL
 
     std::vector<char> ReadFile::ReadBytes(size_t count)
     {
+        std::lock_guard<std::mutex> lock(mtx_);
         if (!file_.is_open() && !Open())
             return {};
 
         std::vector<char> buffer(count);
         file_.read(buffer.data(), count);
-        buffer.resize(file_.gcount()); // 实际读取的字节数
+        buffer.resize(file_.gcount());
         return buffer;
     }
 
     size_t ReadFile::GetBytesBefore(const std::string &marker)
     {
+        std::lock_guard<std::mutex> lock(mtx_);
         if (!file_.is_open() && !Open())
             return 0;
 
@@ -425,11 +438,13 @@ namespace QCL
 
     bool ReadFile::FileExists() const
     {
+        std::lock_guard<std::mutex> lock(mtx_);
         return std::filesystem::exists(filename_);
     }
 
     size_t ReadFile::GetFileSize() const
     {
+        std::lock_guard<std::mutex> lock(mtx_);
         if (!FileExists())
             return 0;
         return std::filesystem::file_size(filename_);
@@ -437,9 +452,10 @@ namespace QCL
 
     void ReadFile::Reset()
     {
+        std::lock_guard<std::mutex> lock(mtx_);
         if (file_.is_open())
         {
-            file_.clear(); // 清除 EOF 标志
+            file_.clear();
             file_.seekg(0, std::ios::beg);
         }
     }
