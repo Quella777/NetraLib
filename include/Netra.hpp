@@ -182,13 +182,107 @@ namespace QCL
          */
         bool writeBinary(const std::vector<char> &data, std::ios::openmode mode);
     };
-
-    // 读文件操作
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /**
+     * @brief ReadFile 类 - 读文件操作工具类
+     *
+     * 功能：
+     *  1. 读取全文（文本 / 二进制）
+     *  2. 按行读取
+     *  3. 按字节数读取
+     *  4. 获取指定字节序列前的字节数（包含该字节序列）
+     *  5. 检查文件是否存在
+     *  6. 获取文件大小
+     *
+     * 设计：
+     *  - 与 WriteFile 类风格保持一致
+     *  - 支持文本文件与二进制文件
+     *  - 自动关闭文件（析构时）
+     */
     class ReadFile
     {
-    };
+    public:
+        /**
+         * @brief 构造函数
+         * @param filename 文件路径
+         */
+        explicit ReadFile(const std::string &filename);
 
+        /**
+         * @brief 析构函数，自动关闭文件
+         */
+        ~ReadFile();
+
+        /**
+         * @brief 打开文件（以二进制方式）
+         * @return true 打开成功
+         * @return false 打开失败
+         */
+        bool Open();
+
+        /**
+         * @brief 关闭文件
+         */
+        void Close();
+
+        /**
+         * @brief 文件是否已经打开
+         */
+        bool IsOpen() const;
+
+        /**
+         * @brief 读取全文（文本模式）
+         * @return 文件内容字符串
+         */
+        std::string ReadAllText();
+
+        /**
+         * @brief 读取全文（二进制模式）
+         * @return 文件内容字节数组
+         */
+        std::vector<char> ReadAllBinary();
+
+        /**
+         * @brief 按行读取文本
+         * @return 每行作为一个字符串的 vector
+         */
+        std::vector<std::string> ReadLines();
+
+        /**
+         * @brief 读取指定字节数
+         * @param count 要读取的字节数
+         * @return 实际读取到的字节数据
+         */
+        std::vector<char> ReadBytes(size_t count);
+
+        /**
+         * @brief 获取指定字节序列前的字节数（包含该字节序列）
+         * @param marker 要查找的字节序列（可能不止一个字节）
+         * @return 如果找到，返回前面部分字节数；找不到返回全文字节数
+         */
+        size_t GetBytesBefore(const std::string &marker);
+
+        /**
+         * @brief 检查文件是否存在
+         */
+        bool FileExists() const;
+
+        /**
+         * @brief 获取文件大小（字节数）
+         */
+        size_t GetFileSize() const;
+
+        /**
+         * @brief 重置读取位置到文件开头
+         */
+        void Reset();
+
+    private:
+        std::string filename_; // 文件路径
+        std::ifstream file_;   // 文件流对象
+    };
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     // 屏蔽所有信号
     void blockAllSignals();
 }

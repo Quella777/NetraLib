@@ -340,6 +340,111 @@ namespace QCL
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ReadFile::ReadFile(const std::string &filename) : filename_(filename) {}
+
+    ReadFile::~ReadFile()
+    {
+        Close();
+    }
+
+    bool ReadFile::Open()
+    {
+        file_.open(filename_, std::ios::in | std::ios::binary);
+        return file_.is_open();
+    }
+
+    void ReadFile::Close()
+    {
+        if (file_.is_open())
+            file_.close();
+    }
+
+    bool ReadFile::IsOpen() const
+    {
+        return file_.is_open();
+    }
+
+    std::string ReadFile::ReadAllText()
+    {
+        if (!file_.is_open() && !Open())
+            return "";
+
+        std::ostringstream ss;
+        ss << file_.rdbuf();
+        return ss.str();
+    }
+
+    std::vector<char> ReadFile::ReadAllBinary()
+    {
+        if (!file_.is_open() && !Open())
+            return {};
+
+        return ReadBytes(GetFileSize());
+    }
+
+    std::vector<std::string> ReadFile::ReadLines()
+    {
+        if (!file_.is_open() && !Open())
+            return {};
+
+        std::vector<std::string> lines;
+        std::string line;
+        while (std::getline(file_, line))
+        {
+            lines.push_back(line);
+        }
+        return lines;
+    }
+
+    std::vector<char> ReadFile::ReadBytes(size_t count)
+    {
+        if (!file_.is_open() && !Open())
+            return {};
+
+        std::vector<char> buffer(count);
+        file_.read(buffer.data(), count);
+        buffer.resize(file_.gcount()); // 实际读取的字节数
+        return buffer;
+    }
+
+    size_t ReadFile::GetBytesBefore(const std::string &marker)
+    {
+        if (!file_.is_open() && !Open())
+            return 0;
+
+        std::ostringstream ss;
+        ss << file_.rdbuf();
+        std::string content = ss.str();
+
+        size_t pos = content.find(marker);
+        if (pos != std::string::npos)
+            return pos + marker.size();
+        else
+            return content.size();
+    }
+
+    bool ReadFile::FileExists() const
+    {
+        return std::filesystem::exists(filename_);
+    }
+
+    size_t ReadFile::GetFileSize() const
+    {
+        if (!FileExists())
+            return 0;
+        return std::filesystem::file_size(filename_);
+    }
+
+    void ReadFile::Reset()
+    {
+        if (file_.is_open())
+        {
+            file_.clear(); // 清除 EOF 标志
+            file_.seekg(0, std::ios::beg);
+        }
+    }
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     // 屏蔽所有信号
     void blockAllSignals()
     {
