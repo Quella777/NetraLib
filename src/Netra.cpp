@@ -306,37 +306,44 @@ namespace QCL
         return true;
     }
 
-    /**
-     * @brief 计算第一个指定字节序列前的字节数（包含该字节序列本身）
-     */
-    long WriteFile::countBytesBeforePattern(const std::string &pattern)
+    size_t WriteFile::countBytesBeforePattern(const std::string &pattern, bool includePattern)
     {
         std::lock_guard<std::mutex> lock(writeMutex_);
 
         if (pattern.empty())
-            return -1;
+            return 0;
 
-        std::ifstream file(filePath_, std::ios::binary); // 二进制模式防止编码干扰
+        std::ifstream file(filePath_, std::ios::binary);
         if (!file.is_open())
-            return -1;
+            return 0;
 
-        // 将整个文件读入内存
-        std::vector<char> buffer((std::istreambuf_iterator<char>(file)),
-                                 std::istreambuf_iterator<char>());
-        file.close();
+        file.clear();                 // 清除EOF和错误状态
+        file.seekg(0, std::ios::beg); // 回到文件开头
 
-        // 在 buffer 中查找 pattern
-        auto it = std::search(buffer.begin(), buffer.end(),
-                              pattern.begin(), pattern.end());
+        const size_t chunkSize = 4096;
+        std::string buffer;
+        buffer.reserve(chunkSize * 2);
 
-        if (it == buffer.end())
+        size_t totalRead = 0;
+        char chunk[chunkSize];
+
+        while (file.read(chunk, chunkSize) || file.gcount() > 0)
         {
-            return -1; // 没找到
+            buffer.append(chunk, file.gcount());
+            size_t pos = buffer.find(pattern);
+            if (pos != std::string::npos)
+            {
+                return includePattern ? (pos + pattern.size()) : pos;
+            }
+
+            // 保留末尾部分，避免 buffer 无限增长
+            if (buffer.size() > pattern.size())
+                buffer.erase(0, buffer.size() - pattern.size());
+
+            totalRead += file.gcount();
         }
 
-        // 计算从开头到 pattern 结束的字节数
-        size_t pos = std::distance(buffer.begin(), it);
-        return static_cast<long>(pos + pattern.size());
+        return 0; // 没找到 pattern，返回0
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -419,21 +426,44 @@ namespace QCL
         return buffer;
     }
 
-    size_t ReadFile::GetBytesBefore(const std::string &marker)
+    size_t ReadFile::GetBytesBefore(const std::string &marker, bool includeMarker)
     {
         std::lock_guard<std::mutex> lock(mtx_);
+
         if (!file_.is_open() && !Open())
             return 0;
 
-        std::ostringstream ss;
-        ss << file_.rdbuf();
-        std::string content = ss.str();
+        file_.clear();                 // 清除EOF和错误状态
+        file_.seekg(0, std::ios::beg); // 回到文件开头
 
-        size_t pos = content.find(marker);
-        if (pos != std::string::npos)
-            return pos + marker.size();
-        else
-            return content.size();
+        const size_t chunkSize = 4096;
+        std::string buffer;
+        buffer.reserve(chunkSize * 2);
+
+        size_t totalRead = 0;
+        char chunk[chunkSize];
+
+        while (file_.read(chunk, chunkSize) || file_.gcount() > 0)
+        {
+            buffer.append(chunk, file_.gcount());
+            size_t pos = buffer.find(marker);
+            if (pos != std::string::npos)
+            {
+                // 如果 includeMarker 为 true，返回包含 marker 的长度
+                if (includeMarker)
+                    return pos + marker.size();
+                else
+                    return pos;
+            }
+
+            // 保留末尾部分，避免 buffer 无限增长
+            if (buffer.size() > marker.size())
+                buffer.erase(0, buffer.size() - marker.size());
+
+            totalRead += file_.gcount();
+        }
+
+        return 0;
     }
 
     bool ReadFile::FileExists() const

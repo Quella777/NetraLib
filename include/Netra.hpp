@@ -150,15 +150,12 @@ namespace QCL
         bool appendBinary(const std::vector<char> &data);
 
         /**
-         * @brief 计算第一个指定字节序列前的字节数（包含该字节序列本身）
-         *
-         * 例如：文件内容是 "ABC***--***XYZ"，模式是 "***--***"
-         * 返回值应为 11（"ABC"=3字节 + "***--***"=8字节）。
-         *
-         * @param pattern 要查找的字节模式（支持多字节）
-         * @return long 字节数（包含匹配模式本身），未找到返回 -1
+         * @brief 计算第一个指定字节序列前的字节数
+         * @param pattern 要查找的字节序列
+         * @param includePattern true 表示返回值包含 pattern 自身长度，false 表示不包含
+         * @return size_t 字节数，如果文件没打开或 pattern 为空则返回 0
          */
-        long countBytesBeforePattern(const std::string &pattern);
+        size_t countBytesBeforePattern(const std::string &pattern, bool includePattern = false);
 
     private:
         std::string filePath_;  ///< 文件路径
@@ -259,9 +256,9 @@ namespace QCL
         /**
          * @brief 获取指定字节序列前的字节数（包含该字节序列）
          * @param marker 要查找的字节序列（可能不止一个字节）
-         * @return 如果找到，返回前面部分字节数；找不到返回全文字节数
+         * @return 如果找到，返回前面部分字节数；找不到返回0
          */
-        size_t GetBytesBefore(const std::string &marker);
+        size_t GetBytesBefore(const std::string &marker, bool includeMarker = false);
 
         /**
          * @brief 检查文件是否存在
