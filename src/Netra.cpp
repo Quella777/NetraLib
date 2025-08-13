@@ -466,15 +466,42 @@ namespace QCL
         return 0;
     }
 
-    bool ReadFile::FileExists() const
+    std::vector<char> ReadFile::ReadBytesFrom(size_t pos, size_t count)
     {
         std::lock_guard<std::mutex> lock(mtx_);
+
+        if (!file_.is_open() && !Open())
+            return {};
+
+        size_t filesize = GetFileSize();
+        if (pos >= filesize)
+            return {}; // 起始位置超出文件大小
+
+        file_.clear(); // 清除 EOF 和错误状态
+        file_.seekg(pos, std::ios::beg);
+        if (!file_)
+            return {};
+
+        size_t bytes_to_read = count;
+        if (count == 0 || pos + count > filesize)
+            bytes_to_read = filesize - pos; // 读取到文件末尾
+
+        std::vector<char> buffer(bytes_to_read);
+        file_.read(buffer.data(), bytes_to_read);
+
+        // 实际读取的字节数可能少于请求的数量
+        buffer.resize(file_.gcount());
+
+        return buffer;
+    }
+
+    bool ReadFile::FileExists() const
+    {
         return std::filesystem::exists(filename_);
     }
 
     size_t ReadFile::GetFileSize() const
     {
-        std::lock_guard<std::mutex> lock(mtx_);
         if (!FileExists())
             return 0;
         return std::filesystem::file_size(filename_);
@@ -497,6 +524,34 @@ namespace QCL
         // 忽略全部的信号
         for (int ii = 1; ii <= 64; ii++)
             signal(ii, SIG_IGN);
+    }
+
+    std::string Ltrim(const std::string &s)
+    {
+        size_t start = 0;
+        while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start])))
+        {
+            ++start;
+        }
+        return s.substr(start);
+    }
+
+    std::string Rtrim(const std::string &s)
+    {
+        if (s.empty())
+            return s;
+
+        size_t end = s.size();
+        while (end > 0 && std::isspace(static_cast<unsigned char>(s[end - 1])))
+        {
+            --end;
+        }
+        return s.substr(0, end);
+    }
+
+    std::string LRtrim(const std::string &s)
+    {
+        return Ltrim(Rtrim(s));
     }
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 }

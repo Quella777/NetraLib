@@ -261,6 +261,14 @@ namespace QCL
         size_t GetBytesBefore(const std::string &marker, bool includeMarker = false);
 
         /**
+         * @brief 从指定位置读取指定字节数，默认读取到文件末尾
+         * @param pos 起始位置（字节偏移）
+         * @param count 要读取的字节数，默认为0表示读取到文件末尾
+         * @return 读取到的字节数据
+         */
+        std::vector<char> ReadBytesFrom(size_t pos, size_t count = 0);
+
+        /**
          * @brief 检查文件是否存在
          */
         bool FileExists() const;
@@ -284,4 +292,14 @@ namespace QCL
 
     // 屏蔽所有信号
     void blockAllSignals();
+
+    // 去除字符串的左空格
+    std::string Ltrim(const std::string &s);
+
+    // 去除字符串右侧的空格
+    std::string Rtrim(const std::string &s);
+
+    // 去除字符串左右两侧的空格
+    std::string LRtrim(const std::string &s);
+
 }
