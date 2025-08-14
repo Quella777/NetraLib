@@ -49,7 +49,7 @@ namespace QCL
          * @param clientSock 客户端Socket描述符
          * @param flag:false 非阻塞模式,true 阻塞模式
          */
-        char *receiveFromClient(int clientSock, bool flag = true);
+        std::string receiveFromClient(int clientSock, bool flag = true);
 
         /**
          * @brief 获取连接客户端的IP和端口

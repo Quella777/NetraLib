@@ -156,26 +156,19 @@ namespace QCL
     /**
      * @brief 单次接收指定客户端数据
      * @param clientSock 客户端socket
-     *
-     * 注意：此函数在当前设计中未在线程中使用，仅演示用。
      */
-    char *TcpServer::receiveFromClient(int clientSock, bool flag)
+    std::string TcpServer::receiveFromClient(int clientSock, bool flag)
     {
         char buffer[1024];
         std::memset(buffer, 0, sizeof(buffer));
 
-        ssize_t bytesReceived = 0;
-
-        if (flag)
-            bytesReceived = recv(clientSock, buffer, sizeof(buffer) - 1, 0);
-        else
-            bytesReceived = recv(clientSock, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
+        int flags = flag ? 0 : MSG_DONTWAIT;
+        ssize_t bytesReceived = recv(clientSock, buffer, sizeof(buffer) - 1, flags);
 
         if (bytesReceived <= 0)
-        {
-            return nullptr;
-        }
-        return strdup(buffer); // 返回动态分配的字符串副本
+            return {};
+
+        return std::string(buffer, bytesReceived);
     }
 
     /**
