@@ -38,6 +38,7 @@
 #include <iomanip>    // 流格式控制（setw/setprecision）
 #include <regex>      // 正则表达式
 #include <filesystem> // 文件系统(C++17)
+#include<termios.h>
 
 // ==================== 并发编程支持 ====================
 #include <thread>             // 线程管理（std::thread）
