@@ -292,8 +292,9 @@ namespace QCL
 
     // 屏蔽所有信号
     void blockAllSignals();
-
-    // 去除字符串的左空格
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // 字符串操作
+    //  去除字符串的左空格
     std::string Ltrim(const std::string &s);
 
     // 去除字符串右侧的空格
@@ -301,5 +302,69 @@ namespace QCL
 
     // 去除字符串左右两侧的空格
     std::string LRtrim(const std::string &s);
+
+    // 通用类型转字符串
+    template <typename T>
+    std::string to_string_any(const T &value)
+    {
+        std::ostringstream oss;
+        oss << value;
+        return oss.str();
+    }
+
+    // 递归获取 tuple 中 index 对应参数
+    template <std::size_t I = 0, typename Tuple>
+    std::string get_tuple_arg(const Tuple &tup, std::size_t index)
+    {
+        if constexpr (I < std::tuple_size_v<Tuple>)
+        {
+            if (I == index)
+                return to_string_any(std::get<I>(tup));
+            else
+                return get_tuple_arg<I + 1>(tup, index);
+        }
+        else
+        {
+            throw std::runtime_error("Too few arguments for format string");
+        }
+    }
+
+    // format 函数
+    template <typename... Args>
+    std::string format(const std::string &fmt, const Args &...args)
+    {
+        std::ostringstream oss;
+        std::tuple<const Args &...> tup(args...);
+        size_t pos = 0;
+        size_t arg_idx = 0;
+
+        while (pos < fmt.size())
+        {
+            if (fmt[pos] == '{' && pos + 1 < fmt.size() && fmt[pos + 1] == '{')
+            {
+                oss << '{';
+                pos += 2;
+            }
+            else if (fmt[pos] == '}' && pos + 1 < fmt.size() && fmt[pos + 1] == '}')
+            {
+                oss << '}';
+                pos += 2;
+            }
+            else if (fmt[pos] == '{' && pos + 1 < fmt.size() && fmt[pos + 1] == '}')
+            {
+                oss << get_tuple_arg(tup, arg_idx++);
+                pos += 2;
+            }
+            else
+            {
+                oss << fmt[pos++];
+            }
+        }
+
+        if (arg_idx < sizeof...(Args))
+            throw std::runtime_error("Too many arguments for format string");
+
+        return oss.str();
+    }
 
 }
