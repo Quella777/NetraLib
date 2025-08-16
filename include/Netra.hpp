@@ -121,19 +121,6 @@ namespace QCL
         bool appendText(const std::string &content);
 
         /**
-         * @brief 按指定位置写入文本（原文写，线程安全）
-         *
-         * 不清空文件内容，仅替换指定位置的内容。
-         * 若文件不存在，则会自动创建空文件。
-         *
-         * @param content 要写入的内容
-         * @param position 写入位置（默认为文件开头）
-         * @return true 写入成功
-         * @return false 写入失败
-         */
-        bool writeOriginal(const std::string &content, std::streampos position = 0);
-
-        /**
          * @brief 覆盖写二进制文件（线程安全）
          * @param data 要写入的二进制数据
          * @return true 写入成功
@@ -155,7 +142,59 @@ namespace QCL
          * @param includePattern true 表示返回值包含 pattern 自身长度，false 表示不包含
          * @return size_t 字节数，如果文件没打开或 pattern 为空则返回 0
          */
-        size_t countBytesBeforePattern(const std::string &pattern, bool includePattern = false);
+        size_t countBytesPattern(const std::string &pattern, bool includePattern = false);
+
+        /**
+         * @brief 在文件中查找指定字节序列并在其后写入内容，如果不存在则追加到文件末尾
+         * @param pattern 要查找的字节序列
+         * @param content 要写入的内容
+         * @return true 写入成功，false 文件打开失败
+         *
+         * 功能说明：
+         * 1. 若文件中存在 pattern，则删除 pattern 之后的所有内容，并在其后插入 content。
+         * 2. 若文件中不存在 pattern，则在文件末尾追加 content，若末尾无换行符则先补充换行。
+         */
+        bool writeAfterPatternOrAppend(const std::string &pattern, const std::string &content);
+
+        /**
+         * @brief 在文件指定位置之后插入内容
+         * @param content 要插入的内容
+         * @param pos 插入位置（从文件开头算起的字节偏移量）
+         * @param length 插入的长度（>= content.size() 时，多余部分用空字节填充；< content.size() 时只截取前 length 个字节）
+         * @return true 插入成功，false 文件打开失败或参数不合法
+         *
+         * 功能说明：
+         * 1. 不会覆盖原有数据，而是将 pos 之后的内容整体向后移动 length 个字节。
+         * 2. 如果 length > content.size()，则在 content 后补充 '\0'（或空格，可按需求改）。
+         * 3. 如果 length < content.size()，则只写入 content 的前 length 个字节。
+         * 4. 文件整体大小会增加 length 个字节。
+         *
+         * 举例：
+         * 原始文件内容: "ABCDEFG"
+         * insertAfterPos("XY", 2, 3)  // 在索引 2 后插入
+         * 结果: "ABX Y\0CDEFG"   (这里 \0 代表补充的空字节)
+         */
+        bool insertAfterPos(const std::string &content, size_t pos, size_t length);
+
+        /**
+         * @brief 在文件指定位置覆盖写入内容
+         * @param content 要写入的内容
+         * @param pos 覆盖起始位置（从文件开头算起的字节偏移量）
+         * @param length 覆盖长度
+         * @return true 覆盖成功，false 文件打开失败或 pos 越界
+         *
+         * 功能说明：
+         * 1. 从 pos 开始覆盖 length 个字节，不会移动或增加文件大小。
+         * 2. 如果 content.size() >= length，则只写入前 length 个字节。
+         * 3. 如果 content.size() < length，则写入 content，并用 '\0' 补齐至 length。
+         * 4. 如果 pos + length 超过文件末尾，则只覆盖到文件尾部，不会越界。
+         *
+         * 举例：
+         * 原始文件内容: "ABCDEFG"
+         * overwriteAtPos("XY", 2, 3)
+         * 结果: "ABXYEFG"   （原 "CDE" 被 "XY\0" 覆盖，\0 实际不可见）
+         */
+        bool overwriteAtPos(const std::string &content, size_t pos, size_t length);
 
     private:
         std::string filePath_;  ///< 文件路径
@@ -302,8 +341,9 @@ namespace QCL
 
     // 去除字符串左右两侧的空格
     std::string LRtrim(const std::string &s);
-
-    // 通用类型转字符串
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // c++进行格式化输出
+    //  通用类型转字符串
     template <typename T>
     std::string to_string_any(const T &value)
     {
@@ -366,5 +406,6 @@ namespace QCL
 
         return oss.str();
     }
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 }

@@ -232,30 +232,6 @@ namespace QCL
     }
 
     /**
-     * @brief 按位置写入（线程安全）
-     */
-    bool WriteFile::writeOriginal(const std::string &content, std::streampos position)
-    {
-        std::lock_guard<std::mutex> lock(writeMutex_);
-
-        std::ofstream file(filePath_, std::ios::in | std::ios::out);
-        if (!file.is_open())
-        {
-            // 文件不存在则创建
-            file.open(filePath_, std::ios::out);
-            file.close();
-            file.open(filePath_, std::ios::in | std::ios::out);
-        }
-        if (!file.is_open())
-            return false;
-
-        file.seekp(position);
-        file << content;
-        file.close();
-        return true;
-    }
-
-    /**
      * @brief 覆盖写二进制（线程安全）
      */
     bool WriteFile::overwriteBinary(const std::vector<char> &data)
@@ -299,7 +275,7 @@ namespace QCL
         return true;
     }
 
-    size_t WriteFile::countBytesBeforePattern(const std::string &pattern, bool includePattern)
+    size_t WriteFile::countBytesPattern(const std::string &pattern, bool includePattern)
     {
         std::lock_guard<std::mutex> lock(writeMutex_);
 
@@ -310,9 +286,6 @@ namespace QCL
         if (!file.is_open())
             return 0;
 
-        file.clear();                 // 清除EOF和错误状态
-        file.seekg(0, std::ios::beg); // 回到文件开头
-
         const size_t chunkSize = 4096;
         std::string buffer;
         buffer.reserve(chunkSize * 2);
@@ -322,21 +295,148 @@ namespace QCL
 
         while (file.read(chunk, chunkSize) || file.gcount() > 0)
         {
-            buffer.append(chunk, file.gcount());
+            size_t bytesRead = file.gcount();
+            buffer.append(chunk, bytesRead);
+
             size_t pos = buffer.find(pattern);
             if (pos != std::string::npos)
             {
-                return includePattern ? (pos + pattern.size()) : pos;
+                size_t absolutePos = totalRead + pos; // 关键：加上 totalRead
+                return includePattern ? (absolutePos + pattern.size()) : absolutePos;
             }
 
-            // 保留末尾部分，避免 buffer 无限增长
             if (buffer.size() > pattern.size())
                 buffer.erase(0, buffer.size() - pattern.size());
 
-            totalRead += file.gcount();
+            totalRead += bytesRead; // 读完后再累计
         }
 
-        return 0; // 没找到 pattern，返回0
+        return 0;
+    }
+
+        bool WriteFile::writeAfterPatternOrAppend(const std::string &pattern, const std::string &content)
+    {
+        std::lock_guard<std::mutex> lock(writeMutex_);
+
+        // 读取整个文件
+        std::ifstream in(filePath_, std::ios::binary);
+        if (!in.is_open())
+            return false;
+
+        std::string fileData((std::istreambuf_iterator<char>(in)), {});
+        in.close();
+
+        size_t pos = fileData.find(pattern);
+        if (pos != std::string::npos)
+        {
+            // 模式存在，插入位置在模式结尾
+            pos += pattern.size();
+
+            // 删除模式后所有内容
+            if (pos < fileData.size())
+                fileData.erase(pos);
+
+            // 插入新内容
+            fileData.insert(pos, content);
+        }
+        else
+        {
+            // 模式不存在，直接追加到文件末尾
+            if (!fileData.empty() && fileData.back() != '\n')
+                fileData += '\n'; // 保证换行
+            fileData += content;
+        }
+
+        // 写回文件
+        std::ofstream out(filePath_, std::ios::binary | std::ios::trunc);
+        if (!out.is_open())
+            return false;
+
+        out.write(fileData.data(), fileData.size());
+        return true;
+    }
+
+    bool WriteFile::overwriteAtPos(const std::string &content, size_t pos, size_t length)
+    {
+        std::lock_guard<std::mutex> lock(writeMutex_);
+
+        // 打开文件读取
+        std::ifstream in(filePath_, std::ios::binary);
+        if (!in.is_open())
+            return false;
+
+        std::string fileData((std::istreambuf_iterator<char>(in)), {});
+        in.close();
+
+        // 边界检查
+        if (pos >= fileData.size())
+            return false; // pos 超过文件范围，无法覆盖
+
+        // 生成要覆盖的实际数据块
+        std::string overwriteBlock;
+        if (content.size() >= length)
+        {
+            overwriteBlock = content.substr(0, length);
+        }
+        else
+        {
+            overwriteBlock = content;
+            overwriteBlock.append(length - content.size(), '\0'); // 补齐
+        }
+
+        // 计算实际可写范围
+        size_t maxWritable = std::min(length, fileData.size() - pos);
+
+        // 覆盖
+        fileData.replace(pos, maxWritable, overwriteBlock.substr(0, maxWritable));
+
+        // 写回文件
+        std::ofstream out(filePath_, std::ios::binary | std::ios::trunc);
+        if (!out.is_open())
+            return false;
+
+        out.write(fileData.data(), fileData.size());
+        return true;
+    }
+
+    bool WriteFile::insertAfterPos(const std::string &content, size_t pos, size_t length)
+    {
+        std::lock_guard<std::mutex> lock(writeMutex_);
+
+        // 打开文件读取
+        std::ifstream in(filePath_, std::ios::binary);
+        if (!in.is_open())
+            return false;
+
+        std::string fileData((std::istreambuf_iterator<char>(in)), {});
+        in.close();
+
+        // 边界检查
+        if (pos > fileData.size())
+            pos = fileData.size(); // 如果 pos 超出范围，就视为文件末尾
+
+        // 生成要插入的实际数据块
+        std::string insertBlock;
+        if (content.size() >= length)
+        {
+            insertBlock = content.substr(0, length); // 只取前 length 个字节
+        }
+        else
+        {
+            insertBlock = content;                             // 全部内容
+            insertBlock.append(length - content.size(), '\0'); // 补足空字节
+        }
+
+        // 插入到 pos 后面
+        fileData.insert(pos + 1, insertBlock);
+
+        // 写回文件
+        std::ofstream out(filePath_, std::ios::binary | std::ios::trunc);
+        if (!out.is_open())
+            return false;
+
+        out.write(fileData.data(), fileData.size());
+        return true;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -546,8 +646,6 @@ namespace QCL
     {
         return Ltrim(Rtrim(s));
     }
-
-
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 }
